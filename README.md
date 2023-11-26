@@ -31,7 +31,7 @@ Django (a Python web framework)
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/CineFare_Moviebooking.git
+   git clone [https://github.com/your-username/CineFare_Moviebooking.git](https://github.com/saipranaydeep/CineFare_MovieBooking.git )
    cd CineFare_MovieBooking
 2. Create and activate a virtual environment:
     python -m venv venv
