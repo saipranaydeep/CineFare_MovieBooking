@@ -65,7 +65,6 @@ class booked_seats(models.Model):
     seat_no = models.CharField(max_length=100)
     theatre = models.ForeignKey(theatre,on_delete=models.CASCADE)
     show = models.TimeField()
-    # show = models.CharField(max_length=10)
     movie = models.ForeignKey(Movie,on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE,null=True)
     date = models.DateField(default=timezone.now)

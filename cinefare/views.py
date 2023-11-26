@@ -21,8 +21,6 @@ current_time = timezone.localtime(timezone.now()).time()
 def locationPage(request):
     return render(request,'location.html')
 
-# ,show__gte=current_time
-
 def HomePage(request,city):
     req_user = request.user
     leng = 0
@@ -84,7 +82,6 @@ def movie(request, id, city):
     liked = Movie.objects.filter(genre__icontains=genres[0].strip()).exclude(movie_id=id)
     for genre in genres[1:]:
         liked = liked | Movie.objects.filter(genre__icontains=genre.strip()).exclude(movie_id=id)
-    print(current_date)
     params = {'movie': movie, 'liked': liked, 'comments':comments,'user':request.user,'rate':rate,'city':city,'date':current_date}
     return render(request, 'movie.html', params)
 
@@ -121,7 +118,6 @@ def ratenow(request,city):
         user_rate = request.POST.get("user_rate")
         movie_id = request.POST.get("movie_id")
         movie = Movie.objects.get(movie_id=movie_id)
-        print(user_rate)
         try:
             rating_obj = movie_rating.objects.get(movie=movie)
         except movie_rating.DoesNotExist:
@@ -186,16 +182,13 @@ def reserve_seats(request, id, show, tname, city, date):
     if request.method == 'POST':
         result_list = request.POST.get('selected_seats')
         values = result_list.strip('[]').replace('"', '')
-        print(len(values))
         if len(values)==2:
             price=25000
         else:
             price = (len(values)+1)/3*25000
-        print(values)
         movie = Movie.objects.get(movie_id=id)
         t = theatre.objects.get(theatre_name=tname)
         user = request.user
-        print(price)
         date = datetime.strptime(date, '%b. %d, %Y')
         client = razorpay.Client(auth=("rzp_test_v9sDWwBdexUf2L", "6r3HPNeTIbDKuRHVAGlL7Ywa"))
         DATA = {
@@ -203,7 +196,6 @@ def reserve_seats(request, id, show, tname, city, date):
             "currency": "INR",
         }
         pay = client.order.create(data=DATA)
-        print(pay)
         booked_seat = booked_seats(seat_no=values,theatre=t,show=show,movie=movie,user=user,date=date.date())
         booked_seat.save()
         return render(request,'payment.html',{'city':city,'payment':pay,'c':0})
@@ -211,9 +203,7 @@ def reserve_seats(request, id, show, tname, city, date):
 def generate_pdf(request,city,book):
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="cinefare_booking.pdf"'
-    print(book)
     bookk = book.split()
-    print(bookk)
     booking = booked_seats.objects.get(seat_no=bookk[0])
     # Create a PDF object
     pdf = canvas.Canvas(response, pagesize=letter)
@@ -232,7 +222,7 @@ def generate_pdf(request,city,book):
         Paragraph(f"<b>Theatre:</b> {booking.theatre}", style),
         Paragraph(f"<b>Seats:</b> {bookk[0]}", style),
     ]
-    # Draw the paragraphs on the PDF
+
     y_coordinate = 750
     for text_object in text_content:
         text_object.wrapOn(pdf, 400, 100)
@@ -243,7 +233,6 @@ def generate_pdf(request,city,book):
     image = ImageReader(image_path)
     pdf.drawImage(image, 100, 500, width=150, height=150)
 
-    # Save the PDF content
     pdf.save()
 
     return response      
@@ -256,7 +245,6 @@ def payment(request,city):
 # Authentiacation
 def Signup(request, city):
     if request.method == "POST":
-        # Get the parameters
         loc = city
         username = request.POST['username']
         fname = request.POST['fname']
@@ -283,7 +271,6 @@ def Signup(request, city):
 
 def edit(request,city):
     if request.method == "POST":
-        # Get the parameters
         loc = city
         fname = request.POST['fname']
         lname = request.POST['lname']
@@ -305,7 +292,6 @@ def edit(request,city):
 
 def Login(request, city):
     if request.method == "POST":
-        # Get the parameters
         loginusername = request.POST['username']
         loginpassword = request.POST['pass1']
         loc = city
