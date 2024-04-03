@@ -37,18 +37,18 @@ Django (a Python web framework)
     ```bash
     python -m venv venv
 3. Activate the venv
-4.  ```bash
+   ```bash
     venv\Scripts\activate  
-5. Install dependencies:
+4. Install dependencies:
    ```bash
     pip install -r requirements.txt
-6. Run Migrations:
+5. Run Migrations:
    ```bash
     python manage.py migrate  
-7. Create a superuser:
+6. Create a superuser:
    ```bash
     python manage.py createsuperuser
-8. Run the development server:
+7. Run the development server:
     ```bash
     python manage.py runserver
 
