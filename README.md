@@ -67,8 +67,8 @@ One can manage the database by accessing the Django admin interface at http://lo
 
 ## Usage
 
-•	Register or log in to your account.
-• Browse the list of available movies.
-•	Select a movie and choose your preferred seats.
-•	Proceed to the payment page and complete the booking.
-•	Now user can download the ticket.
+-	Register or log in to your account.
+- Browse the list of available movies.
+-	Select a movie and choose your preferred seats.
+-	Proceed to the payment page and complete the booking.
+-	Now user can download the ticket.
