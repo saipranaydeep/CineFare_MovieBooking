@@ -34,15 +34,22 @@ Django (a Python web framework)
    git clone https://github.com/saipranaydeep/CineFare_MovieBooking.git
    cd CineFare_MovieBooking
 2. Create and activate a virtual environment:
+    ```bash
     python -m venv venv
-    source  venv\Scripts\activate  
-3. Install dependencies:
+3. Activate the venv
+4.  ```bash
+    venv\Scripts\activate  
+5. Install dependencies:
+   ```bash
     pip install -r requirements.txt
-4. Run Migrations:
+6. Run Migrations:
+   ```bash
     python manage.py migrate  
-5. Create a superuser:
+7. Create a superuser:
+   ```bash
     python manage.py createsuperuser
-6. Run the development server:
+8. Run the development server:
+    ```bash
     python manage.py runserver
 
 Visit http://localhost:8000 in your browser to access the application.
