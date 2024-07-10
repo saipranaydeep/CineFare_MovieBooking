@@ -76,3 +76,4 @@ One can manage the database by accessing the Django admin interface at http://lo
 ## Team Members
 - Sai Pranay Deep
 - B Rithvik
+- K Sai Ruchitha 
