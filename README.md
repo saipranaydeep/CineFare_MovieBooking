@@ -12,7 +12,7 @@ Welcome to the CineFare! This Django-based application allows users to browse mo
      Google Maps can be used to find the theater's location.
 -	Seat reservation and selection - User can interact with the seat selection interface which displays a visual representation of the auditorium layout, organized into rows and columns.
      Seats are color-coded or visually marked to indicate their status as selected, occupied seats. 
--	Secure payment processing - User can complete the payment through credit card and various payment methods to confirm their ticket.And user can download ticket in pdf form.
+-	Secure payment processing - User can complete the payment through credit card and various payment methods to confirm their ticket. And user can download ticket in pdf form.
 
 ## Tech Stacks
 
