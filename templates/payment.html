@@ -19,7 +19,7 @@
         {% else %}
         <form action="/{{city}}/payment/" method="post">
             {% csrf_token %}
-            <script src="https://checkout.razorpay.com/v1/checkout.js" data-key="rzp_test_v9sDWwBdexUf2L"
+            <script src="https://checkout.razorpay.com/v1/checkout.js" data-key="{{ razorpay_key_id }}"
                 data-amount="{{payment.amount}}" data-currency="INR" data-order_id="{{payment.id}}"
                 data-buttontext="Pay with Razorpay" data-name="Cinefare" data-description="Book Watch Enjoy!!"
                 data-image="{% static 'icon.ico' %}" data-prefill.name="{{request.user.first_name}}"

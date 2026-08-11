@@ -1,4 +1,5 @@
 from django.shortcuts import render,redirect
+from django.conf import settings
 from django.http import HttpResponse,JsonResponse
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate,login,logout
@@ -190,7 +191,7 @@ def reserve_seats(request, id, show, tname, city, date):
         t = theatre.objects.get(theatre_name=tname)
         user = request.user
         date = datetime.strptime(date, '%b. %d, %Y')
-        client = razorpay.Client(auth=("rzp_test_v9sDWwBdexUf2L", "6r3HPNeTIbDKuRHVAGlL7Ywa"))
+        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
         DATA = {
             "amount": price,
             "currency": "INR",
@@ -198,7 +199,7 @@ def reserve_seats(request, id, show, tname, city, date):
         pay = client.order.create(data=DATA)
         booked_seat = booked_seats(seat_no=values,theatre=t,show=show,movie=movie,user=user,date=date.date())
         booked_seat.save()
-        return render(request,'payment.html',{'city':city,'payment':pay,'c':0})
+        return render(request,'payment.html',{'city':city,'payment':pay,'c':0,'razorpay_key_id':settings.RAZORPAY_KEY_ID})
 
 def generate_pdf(request,city,book):
     response = HttpResponse(content_type='application/pdf')

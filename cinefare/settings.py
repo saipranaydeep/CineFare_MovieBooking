@@ -1,21 +1,40 @@
 from pathlib import Path
 import os
 from django.contrib.messages import constants as messages
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Secrets and environment-specific values live in a git-ignored .env file.
+# See .env.example for the variables this project requires.
+load_dotenv(BASE_DIR / '.env')
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-osjm4y%y-kpx2m*!eb*z)lw0ig47yz_-ctcv(4gjspm2cn%4&2'
+def require_env(name):
+    value = os.environ.get(name)
+    if not value:
+        raise ImproperlyConfigured(
+            f"Missing required environment variable {name!r}. "
+            "Copy .env.example to .env and fill in the values."
+        )
+    return value
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
 
-ALLOWED_HOSTS = []
+SECRET_KEY = require_env('DJANGO_SECRET_KEY')
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('true', '1', 'yes')
+
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+    if host.strip()
+]
+
+# Razorpay credentials (test keys in development, live keys in production)
+RAZORPAY_KEY_ID = require_env('RAZORPAY_KEY_ID')
+RAZORPAY_KEY_SECRET = require_env('RAZORPAY_KEY_SECRET')
 
 
 # Application definition
