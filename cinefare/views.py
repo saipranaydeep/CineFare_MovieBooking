@@ -6,10 +6,12 @@ from django.contrib.auth import authenticate,login,logout
 from django.contrib import messages
 from movies.models import ads,Movie,movieComment,movie_rating,theatre,booked_seats,location
 from math import ceil
-from django.views.decorators.csrf import csrf_exempt
+import json
 import razorpay
+from razorpay.errors import SignatureVerificationError
+from django.db import transaction
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.utils import ImageReader
@@ -17,6 +19,22 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import Paragraph
 current_date = timezone.localdate()
 current_time = timezone.localtime(timezone.now()).time()
+
+TICKET_PRICE = 250
+HOLD_MINUTES = 8
+
+
+def release_expired_holds():
+    cutoff = timezone.now() - timedelta(minutes=HOLD_MINUTES)
+    booked_seats.objects.filter(status='HOLD', created_at__lt=cutoff).update(status='RELEASED')
+
+
+def seats_url(city, movie_id, date, tname, show):
+    return f"/{city}/movie/{movie_id}/{date}/{tname}/{show}/"
+
+
+def razorpay_client():
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 # Pages
 def locationPage(request):
@@ -26,7 +44,7 @@ def HomePage(request,city):
     req_user = request.user
     leng = 0
     if req_user.is_authenticated:
-        booked = booked_seats.objects.filter(user=req_user,date__gte=current_date).order_by('date')
+        booked = booked_seats.objects.filter(user=req_user,date__gte=current_date,status='BOOKED').order_by('date')
         leng = len(booked)
     else:
         booked = None
@@ -167,7 +185,8 @@ def seats(request, id, show, tname, city, date):
     t = theatre.objects.get(theatre_name=tname)
     show = show
     date = datetime.strptime(date, '%b. %d, %Y')
-    bs = booked_seats.objects.filter(theatre=t, show=show, movie=movie,date=date.date()).values_list('seat_no', flat=True)
+    release_expired_holds()
+    bs = booked_seats.objects.filter(theatre=t, show=show, movie=movie,date=date.date()).exclude(status='RELEASED').values_list('seat_no', flat=True)
     bs = [item for sublist in [elem.split(',') if ',' in elem else [elem] for elem in bs] for item in sublist]
     params = {
         'movie': movie,
@@ -180,32 +199,65 @@ def seats(request, id, show, tname, city, date):
     return render(request, 'seats.html', params)
 
 def reserve_seats(request, id, show, tname, city, date):
-    if request.method == 'POST':
-        result_list = request.POST.get('selected_seats')
-        values = result_list.strip('[]').replace('"', '')
-        if len(values)==2:
-            price=25000
-        else:
-            price = (len(values)+1)/3*25000
-        movie = Movie.objects.get(movie_id=id)
-        t = theatre.objects.get(theatre_name=tname)
-        user = request.user
-        date = datetime.strptime(date, '%b. %d, %Y')
-        client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
-        DATA = {
-            "amount": price,
+    if request.method != 'POST':
+        return redirect(seats_url(city, id, date, tname, show))
+    if not request.user.is_authenticated:
+        messages.error(request, "Please login to book tickets!")
+        return redirect(seats_url(city, id, date, tname, show))
+
+    try:
+        selected = json.loads(request.POST.get('selected_seats', '[]'))
+    except json.JSONDecodeError:
+        selected = []
+    selected = [s.strip() for s in selected if s.strip()]
+    if not selected:
+        messages.error(request, "Please select at least one seat!")
+        return redirect(seats_url(city, id, date, tname, show))
+
+    movie = Movie.objects.get(movie_id=id)
+    t = theatre.objects.get(theatre_name=tname)
+    show_date = datetime.strptime(date, '%b. %d, %Y').date()
+    release_expired_holds()
+
+    with transaction.atomic():
+        taken = set()
+        blocking = booked_seats.objects.filter(theatre=t, show=show, movie=movie, date=show_date).exclude(status='RELEASED').values_list('seat_no', flat=True)
+        for seat_str in blocking:
+            taken.update(seat_str.split(','))
+        clash = sorted(set(selected) & taken)
+        if clash:
+            messages.error(request, f"Seat(s) {', '.join(clash)} were just taken by someone else. Please pick different seats.")
+            return redirect(seats_url(city, id, date, tname, show))
+        booking = booked_seats(seat_no=','.join(selected), theatre=t, show=show, movie=movie,
+                               user=request.user, date=show_date, status='HOLD')
+        booking.save()
+
+    amount = len(selected) * TICKET_PRICE * 100  # paise
+    try:
+        order = razorpay_client().order.create(data={
+            "amount": amount,
             "currency": "INR",
-        }
-        pay = client.order.create(data=DATA)
-        booked_seat = booked_seats(seat_no=values,theatre=t,show=show,movie=movie,user=user,date=date.date())
-        booked_seat.save()
-        return render(request,'payment.html',{'city':city,'payment':pay,'c':0,'razorpay_key_id':settings.RAZORPAY_KEY_ID})
+            "receipt": f"booking_{booking.pk}",
+        })
+    except Exception:
+        booking.status = 'RELEASED'
+        booking.save()
+        messages.error(request, "Could not start the payment. Please try again.")
+        return redirect(seats_url(city, id, date, tname, show))
+
+    booking.razorpay_order_id = order['id']
+    booking.save()
+    return redirect(f"/{city}/payment/{booking.pk}/")
 
 def generate_pdf(request,city,book):
+    if not request.user.is_authenticated:
+        return redirect(f'/{city}/')
+    bookk = book.split()
+    booking = booked_seats.objects.filter(seat_no=bookk[0], user=request.user, status='BOOKED').order_by('-pk').first()
+    if booking is None:
+        return HttpResponse("Booking not found", status=404)
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="cinefare_booking.pdf"'
-    bookk = book.split()
-    booking = booked_seats.objects.get(seat_no=bookk[0])
     # Create a PDF object
     pdf = canvas.Canvas(response, pagesize=letter)
     # Create a paragraph style
@@ -230,7 +282,7 @@ def generate_pdf(request,city,book):
         text_object.drawOn(pdf, 100, y_coordinate)
         y_coordinate -= 20
     # # Draw an image on the PDF
-    image_path = 'static\images.png'
+    image_path = 'static/images.png'
     image = ImageReader(image_path)
     pdf.drawImage(image, 100, 500, width=150, height=150)
 
@@ -238,10 +290,95 @@ def generate_pdf(request,city,book):
 
     return response      
 
-@csrf_exempt
-def payment(request,city):
-    c=1
-    return render(request,'payment.html',{'c':c,'city':city})
+def payment(request, city, booking_id):
+    if not request.user.is_authenticated:
+        return redirect(f'/{city}/')
+    try:
+        booking = booked_seats.objects.get(pk=booking_id, user=request.user)
+    except booked_seats.DoesNotExist:
+        return redirect(f'/{city}/')
+
+    release_expired_holds()
+    booking.refresh_from_db()
+
+    seat_list = booking.seat_no.split(',')
+    amount = len(seat_list) * TICKET_PRICE * 100
+    back_url = seats_url(city, booking.movie.movie_id, booking.date.strftime('%b. %d, %Y'),
+                         booking.theatre.theatre_name, booking.show.strftime('%H:%M'))
+    if booking.status == 'BOOKED':
+        state = 'success'
+    elif booking.status == 'RELEASED':
+        state = 'gone'
+    else:
+        state = 'pay'
+    params = {
+        'city': city,
+        'booking': booking,
+        'state': state,
+        'amount': amount,
+        'amount_rupees': amount // 100,
+        'razorpay_key_id': settings.RAZORPAY_KEY_ID,
+        'back_url': back_url,
+        'hold_minutes': HOLD_MINUTES,
+    }
+    return render(request, 'payment.html', params)
+
+
+def payment_verify(request, city, booking_id):
+    if request.method != 'POST':
+        return redirect(f'/{city}/payment/{booking_id}/')
+    if not request.user.is_authenticated:
+        return redirect(f'/{city}/')
+    try:
+        booking = booked_seats.objects.get(pk=booking_id, user=request.user)
+    except booked_seats.DoesNotExist:
+        return redirect(f'/{city}/')
+
+    params = {
+        'razorpay_order_id': request.POST.get('razorpay_order_id', ''),
+        'razorpay_payment_id': request.POST.get('razorpay_payment_id', ''),
+        'razorpay_signature': request.POST.get('razorpay_signature', ''),
+    }
+    if params['razorpay_order_id'] != booking.razorpay_order_id:
+        messages.error(request, "This payment does not match the booking.")
+        return redirect(f'/{city}/payment/{booking_id}/')
+    try:
+        razorpay_client().utility.verify_payment_signature(params)
+    except SignatureVerificationError:
+        messages.error(request, "Payment verification failed. If money was deducted it will be refunded automatically.")
+        return redirect(f'/{city}/payment/{booking_id}/')
+
+    with transaction.atomic():
+        taken = set()
+        others = booked_seats.objects.filter(theatre=booking.theatre, show=booking.show,
+                                             movie=booking.movie, date=booking.date
+                                             ).exclude(pk=booking.pk).exclude(status='RELEASED'
+                                             ).values_list('seat_no', flat=True)
+        for seat_str in others:
+            taken.update(seat_str.split(','))
+        if set(booking.seat_no.split(',')) & taken:
+            messages.error(request, "Payment received, but your seat hold expired and the seats were taken. Please contact support for a refund.")
+            return redirect(f'/{city}/payment/{booking_id}/')
+        booking.status = 'BOOKED'
+        booking.save()
+    return redirect(f'/{city}/payment/{booking_id}/')
+
+
+def payment_cancel(request, city, booking_id):
+    if not request.user.is_authenticated:
+        return redirect(f'/{city}/')
+    try:
+        booking = booked_seats.objects.get(pk=booking_id, user=request.user)
+    except booked_seats.DoesNotExist:
+        return redirect(f'/{city}/')
+
+    back_url = seats_url(city, booking.movie.movie_id, booking.date.strftime('%b. %d, %Y'),
+                         booking.theatre.theatre_name, booking.show.strftime('%H:%M'))
+    if booking.status == 'HOLD':
+        booking.status = 'RELEASED'
+        booking.save()
+        messages.success(request, "Payment cancelled — your seats have been released.")
+    return redirect(back_url)
 
 # Authentiacation
 def Signup(request, city):

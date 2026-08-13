@@ -62,12 +62,23 @@ class theatre(models.Model):
         return self.theatre_name
     
 class booked_seats(models.Model):
+    # HOLD     - seats held while the user is paying (expires after a few minutes)
+    # BOOKED   - payment verified, booking confirmed
+    # RELEASED - hold cancelled/expired or payment failed; seats available again
+    STATUS_CHOICES = [('HOLD', 'HOLD'), ('BOOKED', 'BOOKED'), ('RELEASED', 'RELEASED')]
+
     seat_no = models.CharField(max_length=100)
     theatre = models.ForeignKey(theatre,on_delete=models.CASCADE)
     show = models.TimeField()
     movie = models.ForeignKey(Movie,on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE,null=True)
     date = models.DateField(default=timezone.now)
+    # default BOOKED so pre-existing rows and admin-created rows count as confirmed;
+    # the checkout flow always creates rows with status='HOLD' explicitly
+    status = models.CharField(max_length=8, choices=STATUS_CHOICES, default='BOOKED')
+    razorpay_order_id = models.CharField(max_length=64, blank=True, null=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
     def __str__(self):
         return self.seat_no + " in " +self.theatre.theatre_name+" for "+self.movie.movie_title +" by "+self.user.username
 

@@ -24,7 +24,9 @@ urlpatterns = [
     path('<str:city>/movie/<int:id>/alltheatres/<str:date>/', views.alltheatres, name="alltheatres"),
     path('<str:city>/movie/<int:id>/<str:date>/<str:tname>/<str:show>/', views.seats, name="seats"),
     path('<str:city>/movie/<int:id>/<str:date>/<str:tname>/<str:show>/reserve_seats/', views.reserve_seats, name="reserve_seats"),
-    path('<str:city>/payment/', views.payment, name="payment"),
+    path('<str:city>/payment/<int:booking_id>/', views.payment, name="payment"),
+    path('<str:city>/payment/<int:booking_id>/verify/', views.payment_verify, name="payment_verify"),
+    path('<str:city>/payment/<int:booking_id>/cancel/', views.payment_cancel, name="payment_cancel"),
     path('<str:city>/<str:gen>/<str:lang>/', views.genlang, name="genlang"),
 
 ] + static(settings.MEDIA_URL,document_root=settings.MEDIA_ROOT)
